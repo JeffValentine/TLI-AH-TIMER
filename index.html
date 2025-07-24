@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Auction House Timer</title>
+  <style>
+    :root {
+      --neon: #bb86fc;
+      --bg-full: #2c2c2c;
+      --bg-compact: rgba(24,24,24,0.92);
+      --fg: #fff;
+      --dim: #bbb;
+    }
+    /* Allow dragging the widget by background areas */
+    html, body, .dashboard-box, .widget {
+      -webkit-app-region: drag;
+    }
+    /* Prevent interactive controls from being draggable */
+    button, select, input, .toggle-btn, .pin-btn {
+      -webkit-app-region: no-drag;
+    }
+    body {
+      margin: 0;
+      background: transparent;
+      overflow: hidden;
+      height: 100vh;
+    }
+    @keyframes pulseGlowFixed {
+      0%,100% { text-shadow:0 0 10px #bb86fc,0 0 16px #6200ea; transform:scale(1.02); }
+      50%     { text-shadow:0 0 6px #bb86fc,0 0 10px #6200ea; transform:scale(1); }
+    }
+    @keyframes pulseRed {
+      0%,100% { color:#ff5555; text-shadow:0 0 5px #ff5555; }
+      50%     { color:#ff9999; text-shadow:0 0 15px #ff4444; }
+    }
+    @keyframes subtleFlash {
+      0%,100% { background:transparent; }
+      50%     { background:rgba(255,85,85,0.05); }
+    }
+    /* Pin button styling */
+    .pin-btn {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      background: none;
+      border: 1px solid var(--neon);
+      color: var(--neon);
+      padding: 3px 6px;
+      border-radius: 4.5px;
+      font-size: 0.7em;
+      cursor: pointer;
+      transition: 0.2s;
+      z-index: 10;
+    }
+    .pin-btn:hover {
+      background: var(--neon);
+      color: #000;
+      box-shadow: 0 0 8px var(--neon);
+    }
+    /* ─── Full Widget ────────────────────────────────────────────── */
+    #fullWidget .dashboard-box {
+      position:absolute;
+      top:50%;
+      left:50%;
+      transform:translate(-50%,-50%);
+      width:400px;
+      padding:30px;
+      background:var(--bg-full);
+      color:var(--fg);
+      border-radius:15px;
+      box-shadow:0 0 15px rgba(0,0,0,0.6);
+      font-family:Arial,sans-serif;
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      box-sizing:border-box;
+    }
+    #fullWidget .logo-stamp {
+      position:absolute;
+      top:10px;
+      left:10px;
+      width:40px;
+      opacity:0.4;
+      pointer-events:none;
+    }
+    #fullWidget .toggle-btn {
+      position:absolute;
+      bottom:10px;
+      left:10px;
+      background:none;
+      border:1px solid var(--neon);
+      color:var(--neon);
+      padding:4px 9px;
+      border-radius:4px;
+      font-size:0.6em;
+      cursor:pointer;
+      z-index:10;
+      transition:0.2s;
+    }
+    #fullWidget .toggle-btn:hover {
+      background:var(--neon);
+      color:#000;
+      box-shadow:0 0 8px var(--neon);
+    }
+    #fullWidget .glow-title {
+      text-align:center;
+      margin:0 0 20px;
+      font-size:1.6em;
+      font-weight:bold;
+      background:linear-gradient(90deg,var(--neon),#9b59b6);
+      -webkit-background-clip:text;
+      -webkit-text-fill-color:transparent;
+      animation:pulseGlowFixed 2.5s ease-in-out infinite;
+    }
+    #fullWidget .timer {
+      font-size:2em;
+      text-align:center;
+      margin:0;
+    }
+    #fullWidget .countdown {
+      text-align:center;
+      font-size:1em;
+      color:var(--dim);
+      margin:0;
+    }
+    #fullWidget .countdown.urgent {
+      animation:pulseRed 0.5s infinite, subtleFlash 0.5s infinite;
+      font-weight:bold;
+    }
+    #fullWidget .next-alert-info {
+      text-align:center;
+      font-size:0.9em;
+      color:#888;
+      margin:0;
+    }
+    #fullWidget .button-row {
+      display:flex;
+      justify-content:space-between;
+    }
+    #fullWidget button.startBtn,
+    #fullWidget button.stopBtn {
+      background:none;
+      border:1px solid var(--neon);
+      color:var(--neon);
+      padding:6px 14px;
+      border-radius:6px;
+      font-size:0.9em;
+      cursor:pointer;
+      z-index:10;
+      transition:0.2s;
+    }
+    #fullWidget button.startBtn:hover,
+    #fullWidget button.stopBtn:hover {
+      background:#fff;
+      color:#6200ea;
+    }
+    #fullWidget .status-text {
+      text-align:center;
+      margin:0;
+    }
+    #fullWidget .status-yes { color:#00ff88; font-weight:bold; }
+    #fullWidget .status-no  { color:#ff5555; font-weight:bold; }
+    #fullWidget select, #fullWidget input[type=range] {
+      width:100%;
+      padding:8px;
+      margin:8px 0 15px;
+      background:#444;
+      color:#fff;
+      border:1px solid #555;
+      border-radius:5px;
+      box-sizing:border-box;
+    }
+    #fullWidget label {
+      display:block;
+      margin-top:10px;
+      font-size:0.9em;
+    }
+    #fullWidget .disclaimer {
+      font-size:0.75em;
+      color:#ff8888;
+      text-align:center;
+      margin:0;
+      text-shadow:0 0 6px rgba(255,85,85,0.6);
+    }
+    /* ─── Compact Widget ───────────────────────────────────────── */
+    #compactWidget .widget {
+      position:absolute;
+      top:50%;
+      left:50%;
+      transform:translate(-50%,-50%);
+      display:flex;
+      align-items:center;
+      gap:12px;
+      padding:12px 18px;
+      background:var(--bg-compact);
+      color:var(--fg);
+      border-radius:12px;
+      box-shadow:0 4px 18px rgba(0,0,0,0.4);
+      backdrop-filter:blur(8px);
+      font-family:Arial,sans-serif;
+      font-size:0.78em;
+    }
+    #compactWidget .logo-stamp {
+      width:24px;
+      opacity:0.4;
+    }
+    #compactWidget .toggle-btn {
+      background:none;
+      border:1px solid var(--neon);
+      color:var(--neon);
+      padding:4px 8px;
+      border-radius:6px;
+      font-size:0.9em;
+      cursor:pointer;
+      transition:0.2s;
+    }
+    #compactWidget .toggle-btn:hover {
+      background:var(--neon);
+      color:#000;
+      box-shadow:0 0 8px var(--neon);
+    }
+    @keyframes blink {
+      0%,100% { opacity:1 } 50% { opacity:0.6 }
+    }
+    #compactWidget .section {
+      display:grid;
+      grid-template-columns:auto auto;
+      grid-template-rows:auto auto;
+      gap:2px 12px;
+      align-items:center;
+    }
+    #compactWidget .timer {
+      grid-area:1/1;
+      font-size:1.05em;
+      color:var(--neon);
+    }
+    #compactWidget .countdown {
+      grid-area:2/1;
+      color:var(--dim);
+    }
+    #compactWidget .countdown.urgent {
+      animation:blink 1s infinite;
+      font-weight:bold; color:#ff6b6b;
+    }
+    #compactWidget .next {
+      grid-area:1/2;
+      color:var(--dim);
+    }
+    #compactWidget .status {
+      grid-area:2/2;
+      color:var(--dim);
+    }
+    #compactWidget .status-yes { color:#00ffaa; }
+    #compactWidget .status-no  { color:#ff5555; }
+    #compactWidget .controls {
+      display:flex; gap:8px; align-items:center;
+    }
+    #compactWidget .controls button {
+      background:none;
+      border:1px solid var(--neon);
+      border-radius:6px;
+      color:var(--neon);
+      padding:4px 10px;
+      font-size:0.75em;
+      cursor:pointer;
+      transition:0.2s;
+    }
+    #compactWidget .controls button:hover { background:var(--neon); color:#000; box-shadow:0 0 6px var(--neon); }
+    #compactWidget .controls select,
+    #compactWidget .controls input[type=range] { background:#222; color:#fff; border:1px solid #444; border-radius:6px; padding:3px 4px; font-size:0.75em; }
+  </style>
+</head>
+<body>
+  <!-- Full Dashboard -->
+  <div id="fullWidget">
+    <div class="dashboard-box">
+      <img src="https://i.imgur.com/S1WWZbT.png" class="logo-stamp" alt="XJV Logo"/>
+      <button id="pinBtn" class="pin-btn">📌</button>
+      <button id="toggleFull" class="toggle-btn">Compact View</button>
+      <h1 class="glow-title">Auction House Timer</h1>
+      <div class="timer" id="timer">00:00:00</div>
+      <div class="countdown" id="countdown">Next alert in: --</div>
+      <div class="next-alert-info" id="nextWarning">Warning Time: --</div>
+      <div class="button-row">
+        <button class="startBtn">Start</button>
+        <button class="stopBtn" disabled>Stop</button>
+      </div>
+      <p class="status-text">Notification Active: <span class="status status-no" id="status">No</span></p>
+      <label for="soundSelect">Select Sound:</label>
+      <select id="soundSelect" class="soundSelect">
+        <option value="">-- Select a Sound --</option>
+        <option value="http://commondatastorage.googleapis.com/codeskulptor-assets/week7-brrring.m4a">Chill</option>
+        <option value="http://codeskulptor-demos.commondatastorage.googleapis.com/descent/gotitem.mp3">Clear</option>
+        <option value="https://rpg.hamsterrepublic.com/wiki-images/d/d7/Oddbounce.ogg">Bounce</option>
+      </select>
+      <button class="previewBtn">Preview Sound</button>
+      <label for="volumeSelect">Volume:</label>
+      <input class="volumeSelect" id="volumeSelect" type="range" min="0" max="100" value="50"/>
+      <label for="warningSelect">Warning Time:</label>
+      <select class="warningSelect" id="warningSelect">
+        <option value="5">5 Seconds</option>
+        <option value="10">10 Seconds</option>
+      </select>
+      <p class="disclaimer">⚠️ Don't minimize this tab — drag it aside or switch apps instead.</p>
+      <audio id="alertSound" preload="auto"></audio>
+    </div>
+  </div>
+  <!-- Compact Widget -->
+  <div id="compactWidget" style="display:none;">
+    <div class="widget">
+      <button id="pinBtnCompact" class="pin-btn">📌</button>
+      <button id="toggleCompact" class="toggle-btn">Full View</button>
+      <div class="section">
+        <div class="timer">00:00:00</div>
+        <div class="next">Warn: --</div>
+        <div class="countdown">Next: --</div>
+        <div class="status status-no">No</div>
+      </div>
+      <div class="controls">
+        <button class="startBtn">▶</button>
+        <button class="stopBtn" disabled>■</button>
+        <select class="soundSelect">
+                  <option value="">-- Select a Sound --</option>
+        <option value="http://commondatastorage.googleapis.com/codeskulptor-assets/week7-brrring.m4a">Chill</option>
+        <option value="http://codeskulptor-demos.commondatastorage.googleapis.com/descent/gotitem.mp3">Clear</option>
+        <option value="https://rpg.hamsterrepublic.com/wiki-images/d/d7/Oddbounce.ogg">Bounce</option>
+      </select>
+        <button class="previewBtn">🔊</button>
+        <input class="volumeSelect" type="range" min="0" max="100" value="50"/>
+        <select class="warningSelect">
+          <option value="5">5s</option>
+          <option value="10">10s</option>
+        </select>
+      </div>
+      <audio preload="auto"></audio>
+    </div>
+  </div>
+  <script>
+    // Pin/unpin
+    let pinned = true;
+    document.getElementById('pinBtn').onclick = () => {
+      pinned = !pinned;
+      document.getElementById('pinBtn').textContent = pinned ? '📌' : '🔓';
+      document.getElementById('pinBtnCompact').textContent = pinned ? '📌' : '🔓';
+      window.electronAPI.setPin(pinned);
+    };
+    document.getElementById('pinBtnCompact').onclick = document.getElementById('pinBtn').onclick;
+
+    // Toggle views
+    document.getElementById('toggleFull').onclick = () => {
+      document.getElementById('fullWidget').style.display = 'none';
+      document.getElementById('compactWidget').style.display = 'block';
+      window.electronAPI.requestResize();
+    };
+    document.getElementById('toggleCompact').onclick = () => {
+      document.getElementById('compactWidget').style.display = 'none';
+      document.getElementById('fullWidget').style.display = 'block';
+      window.electronAPI.requestResize();
+    };
+
+    // Shared setup logic
+    function setup(root) {
+      const box = root.querySelector('.dashboard-box, .widget');
+      const timerEl = box.querySelector('.timer');
+      const cdEl = box.querySelector('.countdown');
+      const nwEl = box.querySelector('.next, .next-alert-info');
+      const stEl = box.querySelector('.status');
+      const snd = box.querySelector('.soundSelect');
+      const vol = box.querySelector('.volumeSelect');
+      const wrn = box.querySelector('.warningSelect');
+      const startBtn = box.querySelector('.startBtn');
+      const stopBtn = box.querySelector('.stopBtn');
+      const prevBtn = box.querySelector('.previewBtn');
+      const audio = box.querySelector('audio');
+
+      let interval, active = false;
+      let warningTime = parseInt(localStorage.getItem('warningTime')) || 5;
+      let lastMinute = -1;
+
+      function playSound() {
+        audio.pause(); audio.currentTime = 0; audio.play().catch(() => {});
+      }
+      function updateCountdown(seconds) {
+        const text = seconds <= 60
+          ? `${seconds}s`
+          : `${Math.floor(seconds/60)}m ${String(seconds%60).padStart(2,'0')}s`;
+        cdEl.textContent = root.id === 'fullWidget'
+          ? `Next alert in: ${text}`
+          : `Next: ${text}`;
+        cdEl.classList.toggle('urgent', seconds <= 60);
+      }
+      function updateSoundSettings() {
+        audio.src = snd.value;
+        audio.volume = vol.value / 100;
+        localStorage.setItem('sound', snd.value);
+        localStorage.setItem('volume', vol.value);
+      }
+      function startTimer() {
+        if (!snd.value) return alert('Select a sound first.');
+        if (active) return;
+        active = true;
+        startBtn.disabled = true; stopBtn.disabled = false;
+        stEl.textContent = 'Yes'; stEl.classList.replace('status-no','status-yes');
+        interval = setInterval(() => {
+          const now = new Date();
+          const m = now.getMinutes();
+          const s = now.getSeconds();
+          const next = (10 - (m % 10)) * 60 - s;
+          updateCountdown(next);
+          if (next === warningTime && lastMinute !== m) {
+            lastMinute = m; playSound();
+          }
+          timerEl.textContent = now.toLocaleTimeString('en-GB');
+        }, 1000);
+      }
+      function stopTimer() {
+        if (!active) return;
+        clearInterval(interval); active = false;
+        startBtn.disabled = false; stopBtn.disabled = true;
+        stEl.textContent = 'No'; stEl.classList.replace('status-yes','status-no');
+        cdEl.textContent = root.id === 'fullWidget'
+          ? 'Next alert in: --'
+          : 'Next: --';
+      }
+
+      startBtn.onclick = startTimer;
+      stopBtn.onclick = stopTimer;
+      prevBtn.onclick = playSound;
+      snd.onchange = updateSoundSettings;
+      vol.oninput = updateSoundSettings;
+      wrn.onchange = () => {
+        warningTime = parseInt(wrn.value);
+        localStorage.setItem('warningTime', warningTime);
+        nwEl.textContent = root.id === 'fullWidget'
+          ? `Warning Time: ${warningTime} seconds`
+          : `Warn: ${warningTime}s`;
+      };
+
+      window.addEventListener('load', () => {
+        if (localStorage.getItem('sound')) snd.value = localStorage.getItem('sound');
+        if (localStorage.getItem('volume')) vol.value = localStorage.getItem('volume');
+        if (localStorage.getItem('warningTime')) {
+          warningTime = parseInt(localStorage.getItem('warningTime'));
+          wrn.value = warningTime;
+          nwEl.textContent = root.id === 'fullWidget'
+            ? `Warning Time: ${warningTime} seconds`
+            : `Warn: ${warningTime}s`;
+        }
+        updateSoundSettings();
+      });
+    }
+
+    setup(document.getElementById('fullWidget'));
+    setup(document.getElementById('compactWidget'));
+  </script>
+</body>
+</html>
